@@ -202,7 +202,7 @@ if st.session_state["openai_key_valid"]:
     def load_data_and_init_agent(uploaded_file):
         try:
             # Carrega o DF diretamente da memória (melhor prática Streamlit)
-            df = pd.read_csv(uploaded_file)
+            df = pd.read_csv(uploaded_file, encoding='utf-8')
             st.session_state.df = df
             
             # Informação visual no sidebar
