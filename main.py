@@ -86,10 +86,10 @@ if st.session_state["openai_key_valid"]:
     @tool
     def run_plotting_code(plotting_code: str) -> str:
         """
-        Executa um bloco de código Python Matplotlib/Seaborn para gerar um gráfico. 
-        O código DEVE usar o DataFrame 'df' e NÃO DEVE conter plt.show() ou plt.close().
-        
-        Exemplo de código: 'sns.histplot(df['coluna'], kde=True)'
+        Executa um bloco de código Python Matplotlib/Seaborn para gerar um gráfico de **distribuição** (histograma), scatterplot, boxplot ou qualquer visualização de dados **univariada ou bivariada**.
+        O código DEVE usar o DataFrame 'df' e NUNCA DEVE conter plt.show() ou plt.close().
+        O código DEVE sempre usar o ax e nunca tentar gerar mais de um gráfico por chamada.
+        Exemplo de código para Histograma/Distribuição: 'sns.histplot(data=df, x='coluna', kde=True, ax=ax)'
         """
         # --- NOVO: RE-IMPORTAÇÃO EXPLÍCITA PARA GARANTIR ESCOPO ---
         # Isso garante que plt e sns estejam disponíveis localmente
@@ -97,6 +97,10 @@ if st.session_state["openai_key_valid"]:
         import matplotlib.pyplot as plt # Importação necessária para plt
         import seaborn as sns           # Importação necessária para sns
         # -----------------------------------------------------------
+
+        #plt.close('all') # Limpa TODAS as figuras residuais antes de começar
+        # ===============================
+
         if 'df' not in st.session_state or st.session_state.df is None:
             return "ERRO: DataFrame não carregado. Não é possível plotar."
         
@@ -117,10 +121,11 @@ if st.session_state["openai_key_valid"]:
             # O código de plotagem é executado e o objeto 'fig' é populado.
             
             # Armazena a figura no Session State para exibição pelo Streamlit
-            st.session_state['general_plot_fig'] = fig 
+            st.session_state.general_plots_list.append(fig)
+            #st.session_state['general_plot_fig'] = fig 
             
             # Fecha o objeto Matplotlib localmente
-            plt.close(fig) 
+            #plt.close(fig) 
 
             # === CORREÇÃO EXTRA (SE NECESSÁRIO) ===
             # st.rerun() # Adicione esta linha APENAS se o problema persistir
@@ -197,6 +202,8 @@ if st.session_state["openai_key_valid"]:
         st.session_state.messages = []
     if 'clustering_plot' not in st.session_state:
         st.session_state.clustering_plot = None
+    if 'general_plots_list' not in st.session_state:
+        st.session_state.general_plots_list = []
 
     # Função de upload (substitui a carga estática local)
     def load_data_and_init_agent(uploaded_file):
@@ -212,17 +219,21 @@ if st.session_state["openai_key_valid"]:
             # Inicialização do Agente (movido para cá para ser chamado APENAS após o upload)
             # Configure sua chave de API do OpenAI - DEVE SER UMA VARIÁVEL DE AMBIENTE
             
-            llm = ChatOpenAI(temperature=0.0, model_name="gpt-4")
+            llm = ChatOpenAI(temperature=0.0, model_name="gpt-4o")
 
             # INSTRUÇÃO ADICIONAL CRÍTICA NO PROMPT DO AGENTE PANDAS
             CUSTOM_PREFIX = """Você é um assistente de análise de dados. Você tem acesso a um DataFrame Pandas chamado 'df', Matplotlib ('plt') e Seaborn ('sns').
             Você é um agente NÃO-GUI (sem janela gráfica).
 
-            1.  **VISUALIZAÇÃO (TODOS os gráficos, exceto clusterização):** Para qualquer tipo de gráfico (histograma, scatter, boxplot, etc.),
-                **VOCÊ DEVE SEMPRE** usar a Tool `run_plotting_code`. O argumento `plotting_code` deve ser o código Python **completo** (uma única linha ou um bloco) 
-                que **usa as variáveis `df`, `plt`, `sns` e `ax`**. NUNCA use `plt.show()` ou `plt.close()` dentro do código que você fornece a esta Tool.
+            1.  **VISUALIZAÇÃO (Histogramas, Distribuições, Scatterplots, Boxplots):** Para qualquer tipo de gráfico que mostre **distribuições de variáveis** (histograma, scatter, boxplot, etc.), 
+                **VOCÊ DEVE SEMPRE** usar a Tool `run_plotting_code`. O argumento `plotting_code` deve ser o código Python completo (uma única chamada é recomendada).,
+                **VISUALIZAÇÃO DE GRÁFICOS SIMPLES...:** Para solicitações de múltiplos gráficos (ex: 'histogramas para V1 e V5'), o código Python gerado para a Tool `run_plotting_code` DEVE usar plt.subplots() para criar uma única Figura com múltiplos eixos (axes), 
+                e plotar todos os gráficos solicitados nessa única Figura. Isso garante que todos os gráficos apareçam de uma só vez."
+                O argumento `plotting_code` deve ser o código Python **completo** (uma única linha ou um bloco) 
+                que **usa as variáveis `df`, `plt`, `sns` e `ax`**. O código sempre usar o ax e nunca tentar gerar mais de um gráfico por chamada. NUNCA use `plt.show()` ou `plt.close()` dentro do código que você fornece a esta Tool.
                 * Exemplo de chamada: run_plotting_code(plotting_code="sns.scatterplot(x='V1', y='V2', data=df, ax=ax)")
-            2.  **VISUALIZAÇÃO DE CLUSTERIZAÇÃO:** Para análise K-Means/PCA, **VOCÊ DEVE SEMPRE** usar a Tool `run_clustering_analysis`.
+            2.  **VISUALIZAÇÃO DE CLUSTERIZAÇÃO:** Para análise K-Means/PCA, **VOCÊ DEVE SEMPRE** usar a Tool `run_clustering_analysis`.**NÃO USE** esta Tool para solicitar histogramas ou distribuições simples.
+                **AVISO CRÍTICO:** Use **apenas UMA ÚNICA chamada** à Tool `run_clustering_analysis` por vez.
             3.  **CÁLCULOS/DADOS:** Para todas as outras perguntas (média, filtro, contagem), use o código Python/Pandas (`python_repl_ast`). 
                 **SEMPRE** chame **plt.close('all')** após qualquer código de plotagem do Pandas.
             """
@@ -355,28 +366,40 @@ if st.session_state["openai_key_valid"]:
         st.divider()
 
     # =================================================================
-    # BLOCO DE EXIBIÇÃO DE PLOTAGEM GERAL
+    # BLOCO DE EXIBIÇÃO DE PLOTAGEM GERAL (Frontend)
     # =================================================================
 
-    # Exibe o gráfico de Propósito Geral (histogramas, scatter, etc.)
-    # Verifica o nome exato da variável de estado 'general_plot_fig'
-    if st.session_state.get('general_plot_fig') is not None:
-        st.subheader("Visualização de Gráfico Gerada pelo Agente:")
+    # 1. Copie e Limpe: Cria uma cópia da lista de figuras e limpa o estado imediatamente.
+    # Isso garante que a próxima execução do Streamlit não tente renderizar as figuras antigas.
+    plots_to_render = st.session_state.get('general_plots_list', [])
+    st.session_state.general_plots_list = [] # Limpa a lista na sessão (CRÍTICO)
+    # Verifica se existe uma lista de figuras para processar
+    if plots_to_render:
+        st.subheader("Visualizações de Gráfico Geradas pelo Agente:")
         
-        # Recupera o objeto Figura
-        fig = st.session_state['general_plot_fig']
+        # 2. Renderiza e Fecha as figuras copiadas
+        for i, fig in enumerate(plots_to_render):
+            st.write(f"**Gráfico Solicitado {i+1}**")
         
-        # Comando CRÍTICO: Plota a figura no Streamlit
-        st.pyplot(fig) 
+            # Renderiza
+            st.pyplot(fig) 
         
-        # Adiciona um botão para limpar o gráfico da tela
-        if st.button("Limpar Gráfico", key="clear_general_plot_btn"):
-            # Limpa o objeto da memória do Streamlit e do Matplotlib
-            st.session_state['general_plot_fig'] = None
-            plt.close(fig) 
-            st.rerun() # Força o Streamlit a redesenhar a página sem o gráfico
+            # Fecha para liberar memória.
+            try:
+                plt.close(fig)
+            except Exception:
+                pass # Ignora erro se já estiver fechado
+         
+        st.divider()
 
-    st.divider() # Mantém o separador
+        # 6. Adiciona um botão para limpar a área de gráficos (apenas por conveniência)
+        # Este botão é útil se o usuário quiser remover o gráfico antes de uma nova consulta
+        # Já que a lista é esvaziada no passo 4, ele só serve para um RERUN visual.
+        #if st.button("Limpar Área de Gráficos", key="clear_all_general_plots"):
+            # Se a lista já está vazia, o RERUN apenas redesenha a página
+        #    st.rerun()
+
+        #st.divider()
 
     # main.py (Lógica de entrada do usuário)
     if st.session_state.df is not None:
@@ -407,15 +430,14 @@ if st.session_state["openai_key_valid"]:
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.write(response) # Exibe o texto imediatamente
 
-            # 5. VERIFICAÇÃO CRÍTICA E RERUN
-            # Verifica se existe um objeto de plotagem geral NOVO na sessão (que só existirá
-            # se a Tool foi chamada e salvou um novo gráfico após a limpeza inicial)
-            is_general_plot_ready = st.session_state.get('general_plot_fig') is not None
+            # Verifica se existe algo na lista de plots
+            is_general_plot_ready = len(st.session_state.get('general_plots_list', [])) > 0
             is_clustering_ready = st.session_state.get('clustering_data') is not None
-            
+
             # O RERUN é chamado apenas se uma Tool de plotagem foi executada (e salvou o objeto)
             if is_general_plot_ready or is_clustering_ready:
-                st.rerun()
+                # Este comando é CRÍTICO para o Streamlit redesenhar a página e mostrar o gráfico
+                st.rerun() 
 
     # O script termina aqui.
 else:
