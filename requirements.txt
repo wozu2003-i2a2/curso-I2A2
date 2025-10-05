@@ -1,0 +1,15 @@
+# Bibliotecas principais
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn # Necessário para PCA e KMeans (sklearn)
+
+# Frameworks de LLM e Agentes
+langchain
+langchain-experimental
+langchain-openai # Para usar o modelo ChatOpenAI
+pydantic # Requisito da LangChain
+
+# Interface de Usuário
+streamlit
