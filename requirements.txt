@@ -4,6 +4,7 @@ numpy
 matplotlib
 seaborn
 scikit-learn # Necessário para PCA e KMeans (sklearn)
+tabulate
 
 # Frameworks de LLM e Agentes
 langchain
