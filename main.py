@@ -26,7 +26,7 @@ from sklearn.cluster import KMeans
 import os
 
 # 1. Título do Aplicativo (Opcional, mas útil)
-st.title("Meu App com OpenAI e Streamlit")
+st.title("Configuracao chave OPENAI_API_KEY")
 st.markdown("---")
 
 # 2. Coleta da Chave API (Inicialização da Chave)
@@ -51,7 +51,7 @@ if user_api_key_input:
     st.session_state["openai_key_valid"] = True
     st.success("Chave API configurada com sucesso!")
     # Recarrega o app para prosseguir (opcional, mas limpa a interface)
-    st.rerun() 
+    #st.rerun() 
 else:
     # Se a chave não foi inserida, exibe uma mensagem de aviso
     st.warning("Por favor, insira sua chave API para liberar a aplicação.")
@@ -66,7 +66,7 @@ if st.session_state["openai_key_valid"]:
     # from openai import OpenAI
     # client = OpenAI()
     
-    st.subheader("🎉 O Aplicativo Está Pronto!")
+    st.subheader("🎉 Voce já pode utilizar a Aplicação!")
     
     # O restante da sua aplicação (widgets, chamadas de API, etc.)
     # deve vir DENTRO deste bloco 'if'.
