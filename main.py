@@ -47,7 +47,7 @@ user_api_key_input = st.text_input(
 if user_api_key_input:
     # Salva a chave na sessão e no ambiente para a biblioteca OpenAI
     st.session_state["user_api_key"] = user_api_key_input
-    os.environ["OPENAI_API_KEY"] = user_api_key
+    os.environ["OPENAI_API_KEY"] = user_api_key_input
     st.session_state["openai_key_valid"] = True
     st.success("Chave API configurada com sucesso!")
     # Recarrega o app para prosseguir (opcional, mas limpa a interface)
