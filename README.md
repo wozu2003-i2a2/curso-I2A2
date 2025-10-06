@@ -1,5 +1,4 @@
-# A atividade tem por objetivo criar um ou mais agentes que tornem possível a um usuário realizar perguntas 
-sobre qualquer arquivo CSV disponibilizado, criando uma ferramenta de E.D.A. realmente útil.
+# A atividade tem por objetivo criar um ou mais agentes que tornem possível a um usuário realizar perguntas sobre qualquer arquivo CSV disponibilizado, criando uma ferramenta de E.D.A. realmente útil.
 ## Atividade Obrigatoria - Agentes Autônomos - Curso I2A2
 
 ## Desenvolvimento
